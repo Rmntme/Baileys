@@ -2,8 +2,8 @@ name: Update WAProto
 
 on:
   schedule:
-    - cron: "10 1 * * *"
-  workflow_dispatch:
+    - cron: "10 1 * * *"   # mantém agendado
+  workflow_dispatch: {}     # também permite rodar manualmente
 
 permissions:
   contents: write
@@ -15,12 +15,23 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install Node
-        uses: actions/setup-node@v3
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20.x
+
+      # ✅ Yarn não vem pronto no runner com Node 20. Instale/ative antes de usar.
+      # Opção A: Yarn v1 clássico (mais simples e compatível)
+      - name: Install Yarn v1
+        run: npm i -g yarn@1.22.22
+
+      # (Opcional) Se preferir corepack + yarn@stable, troque o step acima por:
+      # - name: Enable corepack and prepare Yarn
+      #   run: |
+      #     corepack enable
+      #     corepack prepare yarn@stable --activate
 
       - name: Install packages
         run: |
@@ -36,7 +47,7 @@ jobs:
           echo "wa_version=$WA_VERSION" >> $GITHUB_OUTPUT
           echo "wa_js_url=$WA_JS_URL" >> $GITHUB_OUTPUT
 
-      - name: GenerateStatics
+      - name: Generate statics
         run: yarn gen:protobuf
 
       - name: Update baileys-version.json
@@ -46,14 +57,17 @@ jobs:
           echo -e "{\n\t\"version\": [$WA_NUMBERS]\n}" > src/Defaults/baileys-version.json
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v6
         with:
           commit-message: "chore: updated proto/version to v${{steps.wa_proto_info.outputs.wa_version}}"
           title: "Whatsapp v${{steps.wa_proto_info.outputs.wa_version}} proto/version change"
           branch: "update-proto/stable"
           delete-branch: true
           labels: "update-proto"
-          body: "Automated changes\nFound source JS URL: ${{steps.wa_proto_info.outputs.wa_js_url}}\nCurrent version: v${{steps.wa_proto_info.outputs.wa_version}}"
+          body: |
+            Automated changes
+            Found source JS URL: ${{steps.wa_proto_info.outputs.wa_js_url}}
+            Current version: v${{steps.wa_proto_info.outputs.wa_version}}
           add-paths: |
             WAProto/*
             src/Defaults/baileys-version.json
