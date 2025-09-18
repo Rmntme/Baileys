@@ -2,8 +2,8 @@ name: Update WAProto
 
 on:
   schedule:
-    - cron: "10 1 * * *"   # mantém agendado
-  workflow_dispatch: {}     # também permite rodar manualmente
+    - cron: "10 1 * * *"
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -22,21 +22,26 @@ jobs:
         with:
           node-version: 20.x
 
-      # ✅ Yarn não vem pronto no runner com Node 20. Instale/ative antes de usar.
-      # Opção A: Yarn v1 clássico (mais simples e compatível)
-      - name: Install Yarn v1
+      # Root usa Yarn v1 (lockfile v1)
+      - name: Install Yarn v1 (root)
         run: npm i -g yarn@1.22.22
 
-      # (Opcional) Se preferir corepack + yarn@stable, troque o step acima por:
-      # - name: Enable corepack and prepare Yarn
-      #   run: |
-      #     corepack enable
-      #     corepack prepare yarn@stable --activate
-
-      - name: Install packages
+      - name: Install packages (root)
         run: |
           yarn
-          yarn --pure-lockfile --cwd proto-extract
+          # compila se tiver tsc no postinstall
+          yarn -s run tsc || true
+
+      # proto-extract usa Yarn Berry (lockfile v2/v3)
+      - name: Enable Corepack (for Yarn Berry)
+        run: corepack enable
+
+      - name: Prepare Yarn Berry for proto-extract
+        run: corepack prepare yarn@stable --activate
+
+      - name: Install packages (proto-extract with Yarn Berry)
+        run: |
+          yarn --cwd proto-extract install --immutable || yarn --cwd proto-extract install
 
       - name: Update WAProto.proto
         id: wa_proto_info
