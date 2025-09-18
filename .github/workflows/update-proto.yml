@@ -2,8 +2,8 @@ name: Update WAProto
 
 on:
   schedule:
-    - cron: "10 1 * * *"   # roda diariamente às 01:10 UTC
-  workflow_dispatch: {}     # também permite rodar manualmente
+    - cron: "10 1 * * *"   # diário 01:10 UTC
+  workflow_dispatch: {}     # também manual
 
 permissions:
   contents: write
@@ -23,19 +23,18 @@ jobs:
           node-version: 20.x
           cache: 'yarn'
 
-      # Garante Yarn clássico (v1) no runner
+      # ---- Instalação root (Yarn v1) ----
       - name: Install Yarn v1
         run: npm i -g yarn@1.22.22
 
-      # Instala as deps do projeto raiz (lockfile v1)
       - name: Install packages (root)
         run: yarn --pure-lockfile
 
-      # Instala as deps do subprojeto proto-extract (lockfile v1)
+      # ---- Instalação proto-extract (Yarn v1) ----
       - name: Install packages (proto-extract)
         run: yarn --cwd proto-extract --pure-lockfile
 
-      # Extrai versão/URL a partir do script do proto-extract
+      # ---- Extrai versão/URL dos logs do extractor ----
       - name: Update WAProto.proto
         id: wa_proto_info
         run: |
@@ -45,30 +44,34 @@ jobs:
           echo "wa_version=$WA_VERSION" >> $GITHUB_OUTPUT
           echo "wa_js_url=$WA_JS_URL" >> $GITHUB_OUTPUT
 
-      # Gera estáticos (pbjs/pbts)
+      # ---- Gera estáticos (pbjs/pbts) ----
       - name: Generate statics
         run: yarn gen:protobuf
 
-      # Atualiza o JSON de versão
+      # ---- Atualiza JSON de versão ----
       - name: Update baileys-version.json
         run: |
           WA_VERSION="${{steps.wa_proto_info.outputs.wa_version}}"
           WA_NUMBERS=$(echo "$WA_VERSION" | sed 's/\./, /g')
           printf '{\n\t"version": [%s]\n}\n' "$WA_NUMBERS" > src/Defaults/baileys-version.json
 
-      # Abre PR com as mudanças
+      # ---- Cria/atualiza PR (robusto) ----
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: "chore: updated proto/version to v${{steps.wa_proto_info.outputs.wa_version}}"
-          title: "Whatsapp v${{steps.wa_proto_info.outputs.wa_version}} proto/version change"
-          branch: "update-proto/stable"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: main
+          # cria uma branch única por run para não colidir com PR antigo
+          branch: update-proto/stable
+          branch-suffix: timestamp
           delete-branch: true
-          labels: "update-proto"
+          labels: update-proto
+          commit-message: "chore: update WAProto to v${{ steps.wa_proto_info.outputs.wa_version }}"
+          title: "Whatsapp v${{ steps.wa_proto_info.outputs.wa_version }} proto/version update"
           body: |
             Automated changes
-            Found source JS URL: ${{steps.wa_proto_info.outputs.wa_js_url}}
-            Current version: v${{steps.wa_proto_info.outputs.wa_version}}
+            Found source JS URL: ${{ steps.wa_proto_info.outputs.wa_js_url }}
+            Current version: v${{ steps.wa_proto_info.outputs.wa_version }}
           add-paths: |
             WAProto/*
             src/Defaults/baileys-version.json
