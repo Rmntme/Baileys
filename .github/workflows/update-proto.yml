@@ -2,7 +2,7 @@ name: Update WAProto
 
 on:
   schedule:
-    - cron: "10 1 * * *"   # roda diariamente 01:10 UTC
+    - cron: "10 1 * * *"   # roda diariamente às 01:10 UTC
   workflow_dispatch: {}     # permite rodar manualmente
 
 permissions:
@@ -22,42 +22,29 @@ jobs:
         with:
           node-version: 20.x
 
-      # =========================
-      # ROOT (usa Yarn v1 clássico)
-      # =========================
+      # ======================
+      # Root (usa Yarn v1)
+      # ======================
       - name: Install Yarn v1 (root)
         run: npm i -g yarn@1.22.22
 
       - name: Install packages (root)
-        run: |
-          yarn
-          # compila se existir tsc no script/postinstall (ignora se não houver)
-          yarn -s run tsc || true
+        run: yarn
 
-      # ============================================
-      # proto-extract (lockfile Berry: v2/v3/v4)
-      # Força Yarn Berry via Corepack nesse diretório
-      # ============================================
+      # ======================
+      # proto-extract (usa Yarn Berry)
+      # ======================
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Prepare Yarn (Berry) globally
+      - name: Prepare Yarn (Berry)
         run: corepack prepare yarn@stable --activate
-
-      - name: Set Yarn Berry inside proto-extract
-        run: |
-          cd proto-extract
-          corepack yarn set version stable
-          corepack yarn -v
 
       - name: Install packages (proto-extract with Berry)
         run: |
           corepack yarn --cwd proto-extract install --immutable || \
           corepack yarn --cwd proto-extract install
 
-      # =========================
-      # Atualiza / Gera artefatos
-      # =========================
       - name: Update WAProto.proto
         id: wa_proto_info
         run: |
@@ -67,6 +54,9 @@ jobs:
           echo "wa_version=$WA_VERSION" >> $GITHUB_OUTPUT
           echo "wa_js_url=$WA_JS_URL" >> $GITHUB_OUTPUT
 
+      # ======================
+      # Geração e commit
+      # ======================
       - name: Generate statics
         run: yarn gen:protobuf
 
